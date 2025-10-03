@@ -81,58 +81,12 @@
 ## Demo Screenshots
 
 ### Main Dashboard
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  TACTIQ                        │  Selected Players              │
-│  Optimal Squad Builder         │  ┌─────────────────────────┐  │
-│                                │  │ Player  │ Team │ Role    │  │
-│  Team Configuration            │  │ J. Smith│ FC A │ Forward │  │
-│  ┌──────────────────────┐     │  │ M. Jones│ FC A │ Mid     │  │
-│  │ Team ID        [1]   │     │  └─────────────────────────┘  │
-│  │ Defenders      [4]   │     │                                │
-│  │ Midfielders    [4]   │     │  Football Coach Assistant      │
-│  │ Forwards       [2]   │     │  ┌─────────────────────────┐  │
-│  │ Max Time (hrs) [___] │     │  │ Quick Prompts:          │  │
-│  │                      │     │  │ [Analyze] [Synergies]   │  │
-│  │ [Build Squad]        │     │  │ Ask about tactics...    │  │
-│  └──────────────────────┘     │  └─────────────────────────┘  │
-│                                │                                │
-│  Squad Statistics              │  Team Formation                │
-│  ┌──────────────────────┐     │  ┌─────────────────────────┐  │
-│  │ Total Players:  11   │     │  │                         │  │
-│  │ Total Rating:   850  │     │  │      ⚽ ⚽               │  │
-│  │ Training Time:  45.2 │     │  │                         │  │
-│  └──────────────────────┘     │  │    ⚽ ⚽ ⚽ ⚽           │  │
-│                                │  │                         │  │
-│  Optimization Status           │  │  ⚽ ⚽ ⚽ ⚽             │  │
-│  Status: ✓ Optimal            │  │                         │  │
-│  Objective: 847.48            │  │      🥅                 │  │
-└─────────────────────────────────────────────────────────────────┘
-```
+<img width="1875" height="852" alt="image" src="https://github.com/user-attachments/assets/7008aa7e-53ce-4d70-a107-2e70845164c9" />
 
 ### AI Chatbot Interface
 The integrated AI coach provides instant tactical insights:
+<img width="902" height="424" alt="image" src="https://github.com/user-attachments/assets/27c15c69-376b-43c8-8d49-ee586c8a6236" />
 
-```
-User: Analyze the tactical strengths and weaknesses of this optimized squad
-
-AI Coach: Your 4-4-2 formation shows strong midfield dominance with a total 
-rating of 340 in the center. Key strengths include:
-
-**Strengths:**
-- High versatility with 3 all-rounders providing tactical flexibility
-- Strong defensive line averaging 82 rating per player
-- Low training time requirement (45.2 hrs) enables quick preparation
-
-**Weaknesses:**
-- Limited attacking options with only 2 forwards
-- Potential vulnerability on wings if midfielders push forward
-- Consider rotating in Player X for better pace in counter-attacks
-
-Would you like me to suggest tactical adjustments or alternative formations?
-```
-
----
 
 ## How It Works
 
@@ -158,38 +112,6 @@ Where:
 5. Players can only fill positions they're eligible for
 6. Minimum number of versatile all-rounders (if available)
 7. Optional: Total training time ≤ maximum budget
-
-### AI Integration Architecture
-
-```
-┌─────────────┐
-│   User      │
-│   Query     │
-└──────┬──────┘
-       │
-       v
-┌─────────────────────────────────────┐
-│  Context Builder                    │
-│  • Complete roster (all players)    │
-│  • Selected 11 players              │
-│  • Formation details                │
-│  • Optimization metrics             │
-└──────┬──────────────────────────────┘
-       │
-       v
-┌─────────────────────────────────────┐
-│  Gemini 2.0 Flash + Google Search   │
-│  • Tactical analysis                │
-│  • Real-time football knowledge     │
-│  • Training recommendations         │
-└──────┬──────────────────────────────┘
-       │
-       v
-┌─────────────┐
-│  Markdown   │
-│  Response   │
-└─────────────┘
-```
 
 ---
 
@@ -247,7 +169,7 @@ Place your player data Excel file in the project root:
 ```
 tactiq-squad-builder/
 ├── app.py
-├── Step 6 - Final Player list for OR.xlsx  ← Your data file
+├── Database.xlsx  ← Your data file
 ├── requirements.txt
 └── README.md
 ```
@@ -410,159 +332,6 @@ Recommendation: Keep Player A for higher rating, but consider Player B if:
 
 ## Deployment
 
-### Deploy to Render (Free Tier)
-
-#### 1. Prepare for Deployment
-
-Add `server` variable to `app.py`:
-```python
-server = app.server  # Add before if __name__ == '__main__'
-```
-
-Create `.gitignore`:
-```
-venv/
-__pycache__/
-*.pyc
-.env
-*.log
-```
-
-#### 2. Push to GitHub
-
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/yourusername/tactiq-squad-builder.git
-git push -u origin main
-```
-
-#### 3. Deploy on Render
-
-1. Go to [render.com](https://render.com) and sign up
-2. Click **"New +"** → **"Web Service"**
-3. Connect your GitHub repository
-4. Configure:
-   - **Name**: `tactiq-squad-builder`
-   - **Environment**: `Python 3`
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `gunicorn app:server -b 0.0.0.0:$PORT --workers 1 --timeout 120`
-5. Add environment variable:
-   - **Key**: `GEMINI_API_KEY`
-   - **Value**: Your API key
-6. Click **"Create Web Service"**
-
-Your app will be live at: `https://tactiq-squad-builder.onrender.com`
-
-### Deploy to Railway
-
-#### 1. Create Procfile
-
-```
-web: gunicorn app:server --bind 0.0.0.0:$PORT --workers 1 --timeout 120
-```
-
-#### 2. Deploy
-
-1. Go to [railway.app](https://railway.app)
-2. **New Project** → **Deploy from GitHub**
-3. Select your repository
-4. Add environment variables in settings
-5. Deploy automatically
-
-### Deploy to PythonAnywhere
-
-#### 1. Upload Files
-
-- Upload via dashboard or Git clone
-
-#### 2. Install Packages
-
-```bash
-pip3.9 install --user -r requirements.txt
-```
-
-#### 3. Configure WSGI
-
-Edit `/var/www/yourusername_pythonanywhere_com_wsgi.py`:
-```python
-import sys
-path = '/home/yourusername/tactiq-squad-builder'
-if path not in sys.path:
-    sys.path.append(path)
-
-from app import server as application
-```
-
-#### 4. Reload Web App
-
-Click **"Reload"** in the Web tab.
-
----
-
-## Project Structure
-
-```
-tactiq-squad-builder/
-│
-├── app.py                                  # Main application file
-├── Step 6 - Final Player list for OR.xlsx # Player database
-├── requirements.txt                        # Python dependencies
-├── README.md                              # This file
-├── .gitignore                             # Git ignore rules
-├── Procfile                               # For Railway deployment
-│
-├── assets/                                # (Optional) Static files
-│   ├── logo.png
-│   └── custom.css
-│
-└── docs/                                  # (Optional) Documentation
-    ├── algorithm.md
-    ├── api-guide.md
-    └── screenshots/
-```
-
----
-
-## API Integration
-
-### Gemini 2.0 Flash API
-
-**Authentication:**
-```python
-from google import genai
-from google.genai import types
-
-client = genai.Client(api_key=GEMINI_API_KEY)
-```
-
-**API Call with Google Search:**
-```python
-response = client.models.generate_content(
-    model='gemini-2.0-flash-exp',
-    contents=conversation,
-    config=types.GenerateContentConfig(
-        tools=[types.Tool(google_search=types.GoogleSearch())],
-        response_modalities=["TEXT"]
-    )
-)
-```
-
-**Rate Limits:**
-- Free tier: 15 requests per minute
-- 1,500 requests per day
-- 1 million tokens per minute
-
-**Cost:**
-- Free for testing and development
-- Pay-as-you-go for production
-
----
-
-## Optimization Algorithm
-
 ### Problem Formulation
 
 **Decision Variables:**
@@ -624,66 +393,6 @@ max Σ(α × rating[i] × x[i] - β × training_time[i] × x[i])
 - **Constraints**: O(n × p)
 - **Time Complexity**: Polynomial for most cases (NP-complete in worst case)
 - **Space Complexity**: O(n × p)
-
----
-
-## Contributing
-
-We welcome contributions! Here's how you can help:
-
-### Reporting Bugs
-
-Open an issue with:
-- Description of the bug
-- Steps to reproduce
-- Expected vs actual behavior
-- Screenshots (if applicable)
-- Your environment (OS, Python version)
-
-### Feature Requests
-
-Open an issue with:
-- Clear description of the feature
-- Use case and benefits
-- Potential implementation approach
-
-### Pull Requests
-
-1. Fork the repository
-2. Create a feature branch:
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-3. Make your changes
-4. Test thoroughly
-5. Commit with clear messages:
-   ```bash
-   git commit -m "Add: amazing feature description"
-   ```
-6. Push to your fork:
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-7. Open a Pull Request
-
-### Development Setup
-
-```bash
-# Clone your fork
-git clone https://github.com/yourusername/tactiq-squad-builder.git
-
-# Add upstream remote
-git remote add upstream https://github.com/originalauthor/tactiq-squad-builder.git
-
-# Create branch
-git checkout -b feature/your-feature
-
-# Make changes and test
-python app.py
-
-# Push and create PR
-git push origin feature/your-feature
-```
 
 ---
 
