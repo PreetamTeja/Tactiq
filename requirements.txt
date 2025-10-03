@@ -7,3 +7,4 @@ google-genai
 openpyxl
 markdown
 waitress
+python-dotenv
