@@ -8,14 +8,15 @@ from google import genai
 from google.genai import types
 import math
 import markdown
+import os 
 
 # Initialize Dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.title = "TACTIQ"
 
 # Configure Gemini API
-GEMINI_API_KEY = "AIzaSyBSEaknAfxR7vH04Rtts8Wi082DMGWlLmA"
-client = genai.Client(api_key=GEMINI_API_KEY)
+GEMINI_API_KEY = ""
+client = oget.genai.Client(api_key=GEMINI_API_KEY)
 
 # Load player data
 PLAYER_DATA_PATH = "Database.xlsx"
