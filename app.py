@@ -933,4 +933,5 @@ def handle_chat(n_clicks, user_message, chat_history, team_data, all_team_player
     return messages, chat_history, ''
 
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=8050)
+    port = int(os.environ.get('PORT', 8050))
+    app.run(debug=False, host='0.0.0.0', port=port)
