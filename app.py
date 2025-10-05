@@ -306,7 +306,16 @@ app.layout = html.Div([
                     html.Div([
                         dbc.Input(id='max-training-time', type='number', min=0, placeholder='Leave empty for no limit', className='input-modern')
                     ]),
-                    html.Small("", style={'fontSize': '11px', 'color': '#7f8c8d', 'marginTop': '4px', 'display': 'block'})
+                    html.Small("Optional constraint", style={'fontSize': '11px', 'color': '#7f8c8d', 'marginTop': '4px', 'display': 'block'})
+                ], style={'marginBottom': '20px'}),
+                
+                # Max Cost Constraint
+                html.Div([
+                    html.Label("Max Squad Cost", style={'fontSize': '13px', 'color': '#2c3e50', 'fontWeight': '600', 'marginBottom': '6px', 'display': 'block'}),
+                    html.Div([
+                        dbc.Input(id='max-cost', type='number', min=0, placeholder='Leave empty for no limit', className='input-modern')
+                    ]),
+                    html.Small("Total budget for all players", style={'fontSize': '11px', 'color': '#7f8c8d', 'marginTop': '4px', 'display': 'block'})
                 ], style={'marginBottom': '24px'}),
                 
                 html.Button("Build Squad", id='optimize-btn', className='btn-primary-modern', 
@@ -333,8 +342,8 @@ app.layout = html.Div([
     dcc.Store(id='all-team-players-data', data=None)
 ])
 
-def run_optimization(df, team_id, num_defenders, num_midfielders, num_forwards, max_training_time=None):
-    """Run the optimization algorithm with optional training time constraint"""
+def run_optimization(df, team_id, num_defenders, num_midfielders, num_forwards, max_training_time=None, max_cost=None):
+    """Run the optimization algorithm with optional training time and cost constraints"""
     num_goalkeepers = 1
     alpha = 1.0
     beta = 0.1
@@ -345,6 +354,14 @@ def run_optimization(df, team_id, num_defenders, num_midfielders, num_forwards, 
     
     if not any(team_df["final_position"].str.contains("Goalkeeper", case=False, na=False)):
         return None, f"Team {team_id} has no eligible Goalkeeper!"
+    
+    # Check if budget constraint is feasible
+    if max_cost is not None and max_cost > 0:
+        total_players_needed = num_defenders + num_midfielders + num_forwards + num_goalkeepers
+        # Find the cheapest possible team
+        cheapest_11 = team_df.nsmallest(total_players_needed, 'Cost')['Cost'].sum()
+        if cheapest_11 > max_cost:
+            return None, f"Insufficient budget! Minimum cost for 11 players is ${cheapest_11:,.0f}, but your budget is ${max_cost:,.0f}"
     
     position_map = {
         "Forward": ["Forward"],
@@ -389,6 +406,10 @@ def run_optimization(df, team_id, num_defenders, num_midfielders, num_forwards, 
     if max_training_time is not None and max_training_time > 0:
         prob += pulp.lpSum([team_df.loc[i, "training_time"] * x[i] for i in players]) <= max_training_time
     
+    # Add cost constraint if specified
+    if max_cost is not None and max_cost > 0:
+        prob += pulp.lpSum([team_df.loc[i, "Cost"] * x[i] for i in players]) <= max_cost
+    
     mid_all_rounders = [i for i in players if "Mid" in position_map.get(team_df.loc[i, "final_position"], []) and "Defender" in position_map.get(team_df.loc[i, "final_position"], [])]
     def_all_rounders = [i for i in players if "Defender" in position_map.get(team_df.loc[i, "final_position"], []) and "Mid" in position_map.get(team_df.loc[i, "final_position"], [])]
     
@@ -402,6 +423,13 @@ def run_optimization(df, team_id, num_defenders, num_midfielders, num_forwards, 
         prob += pulp.lpSum([x[i] for i in def_all_rounders]) >= 2
     
     prob.solve(pulp.PULP_CBC_CMD(msg=0))
+    
+    # Check if solution is infeasible
+    if pulp.LpStatus[prob.status] == 'Infeasible':
+        if max_cost is not None and max_cost > 0:
+            return None, f"Cannot build a team with the given budget of ${max_cost:,.0f} and formation constraints. Try increasing the budget or adjusting the formation."
+        else:
+            return None, "Optimization failed. The formation constraints cannot be satisfied with the available players."
     
     selected_data = []
     for i in players:
@@ -418,7 +446,8 @@ def run_optimization(df, team_id, num_defenders, num_midfielders, num_forwards, 
                 'final_position': team_df.loc[i, 'final_position'],
                 'assigned_role': assigned_role,
                 'overall_rating': team_df.loc[i, 'overall_rating'],
-                'training_time': team_df.loc[i, 'training_time']
+                'training_time': team_df.loc[i, 'training_time'],
+                'cost': team_df.loc[i, 'Cost']
             })
     
     selected_df = pd.DataFrame(selected_data)
@@ -633,7 +662,8 @@ You can discuss:
 COMPLETE TEAM ROSTER (All {len(all_team_players)} available players):
 """
         for player in all_team_players:
-            system_prompt += f"- {player['player_name']} ({player['team_name']}) - Position: {player['final_position']} | Rating: {player['overall_rating']}, Training: {player['training_time']} hours\n"
+            cost_value = player.get('Cost', 'N/A')
+            system_prompt += f"- {player['player_name']} ({player['team_name']}) - Position: {player['final_position']} | Rating: {player['overall_rating']}, Training: {player['training_time']} hours, Cost: ${cost_value}\n"
         
         system_prompt += "\n"
 
@@ -645,9 +675,12 @@ Formation: {team_data['formation']} (1 Goalkeeper - {team_data['formation']})
 Total Players: {team_data['total_players']}
 Total Team Rating: {team_data['total_rating']:.1f}
 Total Training Time: {team_data['total_training_time']:.1f} hours
+Total Cost: ${team_data['total_cost']:,.0f}
 """
         if team_data.get('max_training_time'):
             system_prompt += f"Max Training Time Constraint: {team_data['max_training_time']} hours\n"
+        if team_data.get('max_cost'):
+            system_prompt += f"Max Cost Budget: ${team_data['max_cost']:,.0f}\n"
         
         system_prompt += f"""Optimization Status: {team_data['status']}
 Objective Value: {team_data['objective_value']:.2f}
@@ -655,7 +688,7 @@ Objective Value: {team_data['objective_value']:.2f}
 Selected Players:
 """
         for player in team_data['players']:
-            system_prompt += f"- {player['player_name']} ({player['team_name']}) - {player['assigned_role']} | Rating: {player['overall_rating']}, Training: {player['training_time']} hours\n"
+            system_prompt += f"- {player['player_name']} ({player['team_name']}) - {player['assigned_role']} | Rating: {player['overall_rating']}, Training: {player['training_time']} hours, Cost: ${player['cost']}\n"
         
         system_prompt += """
 When discussing the team, you can refer to both the selected 11 players AND the complete roster. Provide tactical insights, suggest alternatives from the bench, analyze strengths and weaknesses.
@@ -695,9 +728,10 @@ When discussing the team, you can refer to both the selected 11 players AND the 
      State('num-defenders', 'value'),
      State('num-midfielders', 'value'),
      State('num-forwards', 'value'),
-     State('max-training-time', 'value')]
+     State('max-training-time', 'value'),
+     State('max-cost', 'value')]
 )
-def optimize_team(n_clicks, team_id, num_defenders, num_midfielders, num_forwards, max_training_time):
+def optimize_team(n_clicks, team_id, num_defenders, num_midfielders, num_forwards, max_training_time, max_cost):
     stats_display = html.Div()
     optimality_display = html.Div()
     team_data = None
@@ -711,17 +745,18 @@ def optimize_team(n_clicks, team_id, num_defenders, num_midfielders, num_forward
         ]), stats_display, optimality_display, team_data, all_team_players_data
     
     try:
-        # Get ALL players from the selected team
-        team_df = PLAYER_DATA[PLAYER_DATA["team_id"] == team_id]
-        all_team_players_data = team_df[['player_name', 'team_name', 'final_position', 'overall_rating', 'training_time']].to_dict('records')
+        # Get ALL players from the selected team - rename Cost to cost for consistency
+        team_df = PLAYER_DATA[PLAYER_DATA["team_id"] == team_id].copy()
+        team_df['cost'] = team_df['Cost']  # Create lowercase version
+        all_team_players_data = team_df[['player_name', 'team_name', 'final_position', 'overall_rating', 'training_time', 'cost']].to_dict('records')
         
-        result = run_optimization(PLAYER_DATA, team_id, num_defenders, num_midfielders, num_forwards, max_training_time)
+        result = run_optimization(PLAYER_DATA, team_id, num_defenders, num_midfielders, num_forwards, max_training_time, max_cost)
         
         if result[0] is None:
             error_msg = result[1] if len(result) > 1 else "Optimization Failed"
             return html.Div([
-                html.H3(error_msg, style={'color': '#e74c3c', 'textAlign': 'center'}),
-                html.P("Try adjusting the formation or removing the training time constraint.", 
+                html.H3(error_msg, style={'color': '#e74c3c', 'textAlign': 'center', 'marginBottom': '16px'}),
+                html.P("Try adjusting the formation, increasing the budget, or removing constraints.", 
                        style={'textAlign': 'center', 'color': '#7f8c8d'})
             ]), stats_display, optimality_display, team_data, all_team_players_data
         
@@ -733,10 +768,12 @@ def optimize_team(n_clicks, team_id, num_defenders, num_midfielders, num_forward
             'total_players': len(selected_df),
             'total_rating': float(selected_df['overall_rating'].sum()),
             'total_training_time': float(selected_df['training_time'].sum()),
+            'total_cost': float(selected_df['cost'].sum()),
             'formation': f"{num_defenders}-{num_midfielders}-{num_forwards}",
             'status': status,
             'objective_value': float(objective_value),
-            'max_training_time': max_training_time
+            'max_training_time': max_training_time,
+            'max_cost': max_cost
         }
 
         # Stats cards
@@ -754,6 +791,10 @@ def optimize_team(n_clicks, team_id, num_defenders, num_midfielders, num_forward
                 html.Div(f"{selected_df['training_time'].sum():.1f}", className='stat-value', style={'color': '#2c3e50'}),
                 html.Div("Training Time (hrs)", className='stat-label')
             ], className='stat-card'),
+            html.Div([
+                html.Div(f"${selected_df['cost'].sum():,.0f}", className='stat-value', style={'color': '#e67e22'}),
+                html.Div("Total Cost", className='stat-label')
+            ], className='stat-card'),
         ])
         
         # Add training constraint status if applicable
@@ -763,6 +804,16 @@ def optimize_team(n_clicks, team_id, num_defenders, num_midfielders, num_forward
                 html.Div([
                     html.Div(f"{max_training_time}", className='stat-value', style={'color': '#27ae60' if constraint_met else '#e74c3c'}),
                     html.Div("Max Time Limit", className='stat-label')
+                ], className='stat-card')
+            )
+        
+        # Add cost constraint status if applicable
+        if max_cost is not None and max_cost > 0:
+            constraint_met = selected_df['cost'].sum() <= max_cost
+            stats_display.children.append(
+                html.Div([
+                    html.Div(f"${max_cost:,.0f}", className='stat-value', style={'color': '#27ae60' if constraint_met else '#e74c3c'}),
+                    html.Div("Max Cost Limit", className='stat-label')
                 ], className='stat-card')
             )
         
@@ -790,13 +841,14 @@ def optimize_team(n_clicks, team_id, num_defenders, num_midfielders, num_forward
                     html.Div([
                         html.Label("Selected Players", className="section-title"),
                         dash_table.DataTable(
-                            data=selected_df[['player_name', 'team_name', 'assigned_role', 'overall_rating', 'training_time']].to_dict('records'),
+                            data=selected_df[['player_name', 'team_name', 'assigned_role', 'overall_rating', 'training_time', 'cost']].to_dict('records'),
                             columns=[
                                 {'name': 'Player', 'id': 'player_name'},
                                 {'name': 'Team', 'id': 'team_name'},
                                 {'name': 'Role', 'id': 'assigned_role'},
                                 {'name': 'Rating', 'id': 'overall_rating'},
-                                {'name': 'Training (hrs)', 'id': 'training_time'}
+                                {'name': 'Training (hrs)', 'id': 'training_time'},
+                                {'name': 'Cost', 'id': 'cost', 'type': 'numeric', 'format': {'specifier': '$,.0f'}}
                             ],
                             style_table={'overflowX': 'auto'},
                             style_cell={'textAlign': 'left', 'padding': '12px', 'fontSize': '13px', 'fontFamily': 'Inter, sans-serif', 'border': '1px solid #000000'},
@@ -900,6 +952,8 @@ def handle_chat(n_clicks, user_message, chat_history, team_data, all_team_player
                 welcome_msg += f"\n\nI can see you've optimized a {team_data['formation']} formation. I also have access to all {len(all_team_players) if all_team_players else 0} players in your team roster!"
                 if team_data.get('max_training_time'):
                     welcome_msg += f" Your training time constraint is {team_data['max_training_time']} hours."
+                if team_data.get('max_cost'):
+                    welcome_msg += f" Your budget constraint is ${team_data['max_cost']:,.0f}."
             return [html.Div([
                 dcc.Markdown(welcome_msg, style={'margin': '0'})
             ], className='chat-message bot-message')], chat_history, ''
@@ -933,5 +987,4 @@ def handle_chat(n_clicks, user_message, chat_history, team_data, all_team_player
     return messages, chat_history, ''
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8050))
-    app.run(debug=False, host='0.0.0.0', port=port)
+    app.run(debug=False, host='localhost', port=8050)
